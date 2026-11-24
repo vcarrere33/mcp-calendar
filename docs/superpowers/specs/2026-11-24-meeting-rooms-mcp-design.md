@@ -40,6 +40,18 @@ The data is deliberately mundane; the point is the boundary between agent and sy
   added by email, and refresh tokens expire after 7 days (acceptable for a demo).
 - Demoing two roles needs two Google accounts (e.g. Vincent's Gmail as admin, a second Gmail as employee).
 - Repo published under GitHub user **vcarrere33** (the local `gh` is logged into another account; switch first).
+- One repo, two packages: `meeting_rooms` (the server) and `booking_agent` (the agent). The agent never
+  imports the server; it talks to it only over MCP, like any other client.
+
+## How we work
+
+- **Claude writes the code**, one plan task at a time, test first, and commits each task.
+- **Vincent reviews each task** (diff + test output) before the next one starts. Review comments are
+  fixed in the same task.
+- **Vincent does the steps that need their accounts or a browser**: Google Cloud console, Google sign-ins,
+  the second Gmail, manual demos, switching `gh` and pushing. These steps are marked **[Vincent]** in the plans.
+- Plans: `docs/superpowers/plans/2026-11-24-meeting-rooms-server.md` and
+  `docs/superpowers/plans/2026-11-24-booking-agent.md`.
 
 ## Approaches considered (how the server learns who is calling)
 
@@ -126,9 +138,10 @@ Errors are returned as clear tool errors the agent can explain (room taken, not 
 ### Stack
 
 Python with uv, FastMCP, pydantic-ai, google-api-python-client + google-auth-oauthlib, pytest.
-Python version: whatever the libraries support (likely 3.13; local machine has 3.15).
+Python 3.13. Versions checked on 2026-11-24: FastMCP 4.2, pydantic-ai 2.73 (which supports MCP OAuth
+natively via `MCPToolset(url, auth=...)`), MCP SDK 2.3. Local machine has Python 3.14.
 
-## Left to the builder
+## Left to the builder (Claude)
 
 - Package layout, module names, config file formats in detail.
 - Exact FastMCP auth wiring and how the PydanticAI client does OAuth. **Verify early** that the

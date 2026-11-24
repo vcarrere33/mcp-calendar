@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
-> **Mode for this project:** guided. Vincent writes the code; Claude explains each task, answers questions and reviews each task before the commit.
+> **Mode for this project:** Claude implements each task (test first) and commits it; Vincent reviews the task's diff and test output before the next task starts. Steps marked **[Vincent]** need their Google accounts or a browser: Claude prepares everything around them, then waits.
 
 **Goal:** An HTTP MCP server with Google sign-in that books meeting rooms (simulated as Google calendars), where every tool call goes through one thin layer that knows who is calling.
 
@@ -402,11 +402,11 @@ async def test_sensitive_hook_runs_only_for_cancel(): ...
 **Interfaces:**
 - Produces: `.tokens/calendar.json` (authorized-user credentials, gitignored) used by Task 9; a real `rooms.toml`.
 
-- [ ] **Step 1: Google Cloud console** (reuse the project from the agent spike): enable the Google Calendar API; add the second Gmail as a test user; create an OAuth client of type **Desktop app**, download as `client_secret_calendar.json` (gitignored).
+- [ ] **Step 1 [Vincent]: Google Cloud console** (reuse the project from the agent spike): enable the Google Calendar API; add the second Gmail as a test user; create an OAuth client of type **Desktop app**, download as `client_secret_calendar.json` (gitignored).
 - [ ] **Step 2: `calendar_login.main()`** — `InstalledAppFlow.from_client_secrets_file("client_secret_calendar.json", ["https://www.googleapis.com/auth/calendar"]).run_local_server(port=0)`, write `creds.to_json()` to `.tokens/calendar.json` (create the folder).
-- [ ] **Step 3: Run it** — `uv run calendar-login` → browser login as the room owner; file exists.
+- [ ] **Step 3 [Vincent]: Run it** — `uv run calendar-login` → browser login as the room owner; file exists.
 - [ ] **Step 4: `seed_rooms.main()`** — for each of Atlas (6, screen+whiteboard), Bora (4, whiteboard), Cosmos (12, screen): `service.calendars().insert(body={"summary": "Room Atlas", "timeZone": "Europe/Paris"})`, then print a `rooms.toml` with the returned calendar ids. Skip a room whose calendar already exists (match on summary via `calendarList().list()`), so a re-run is safe.
-- [ ] **Step 5: Run it** — `uv run seed-rooms > rooms.toml`; the three calendars appear in Google Calendar. Copy `users.toml.example` to `users.toml` with the two real emails.
+- [ ] **Step 5 [Vincent]: Run it** — `uv run seed-rooms > rooms.toml`; the three calendars appear in Google Calendar. Copy `users.toml.example` to `users.toml` with the two real emails.
 - [ ] **Step 6: Commit** (scripts only; `git status` must not show `rooms.toml`, `users.toml`, `.tokens/`, `client_secret*`) — `feat: calendar owner login and room seeding scripts`
 
 ---
@@ -439,7 +439,7 @@ def test_event_without_booked_by_is_foreign(): ...  # booked_by is None
 - [ ] **Step 2: Run to fail** — `uv run pytest tests/test_google_mapping.py -v`
 - [ ] **Step 3: Implement the mappers, then `GoogleCalendarBackend`, then `main()`**
 - [ ] **Step 4: Run the suite** — `uv run pytest -v` → all green.
-- [ ] **Step 5: Manual check with Claude Code as the client** — `uv run meeting-rooms-server`; in another terminal `claude mcp add --transport http meeting-rooms http://localhost:8000/mcp`, sign in with Google as the employee, then: search a slot, book it (event appears in Google Calendar with `booked_by`), list, cancel. Sign in as the admin and cancel an employee's booking. Book one slot by hand in Google Calendar and confirm `search_rooms` treats the room as busy.
+- [ ] **Step 5 [Vincent]: Manual check with Claude Code as the client** — `uv run meeting-rooms-server`; in another terminal `claude mcp add --transport http meeting-rooms http://localhost:8000/mcp`, sign in with Google as the employee, then: search a slot, book it (event appears in Google Calendar with `booked_by`), list, cancel. Sign in as the admin and cancel an employee's booking. Book one slot by hand in Google Calendar and confirm `search_rooms` treats the room as busy.
 - [ ] **Step 6: Commit** — `feat: Google Calendar backend and HTTP server entry point`
 
 ---
