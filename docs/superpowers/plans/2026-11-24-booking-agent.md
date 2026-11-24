@@ -59,15 +59,19 @@ Answers one question: can a PydanticAI agent complete the MCP OAuth flow against
 - Produces: a decision, written as two lines at the bottom of this task: `OAuth: works | fails`, `Mechanism: auth=OAuth(...) | auth="oauth" | static key fallback`.
 
 - [ ] **Step 1 [Vincent]: Google Cloud console** — new project; OAuth consent screen "External", testing mode, scopes `openid` + `email`; add both Gmail accounts as test users; create an OAuth client of type **Web application** with redirect URI `http://localhost:8000/auth/callback`. Put its id/secret in `.env` as `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`.
-- [ ] **Step 2: Dependencies** — `uv add fastmcp "pydantic-ai-slim[mcp,anthropic]"`.
-- [ ] **Step 3: `whoami_server.py`** — `FastMCP("whoami", auth=GoogleProvider(client_id=..., client_secret=..., base_url="http://localhost:8000", required_scopes=["openid", "https://www.googleapis.com/auth/userinfo.email"]))`, one tool `whoami() -> str` returning `get_access_token().claims.get("email")`; `run(transport="http", port=8000)`.
-- [ ] **Step 4: `whoami_agent.py`** — `MCPToolset("http://localhost:8000/mcp", auth="oauth")`, an `Agent("anthropic:claude-sonnet-5-5", toolsets=[toolset])`, `await agent.run("Call whoami and tell me my email.")`, print the output.
+- [x] **Step 2: Dependencies** — `uv add fastmcp "pydantic-ai-slim[mcp,anthropic]"`.
+- [x] **Step 3: `whoami_server.py`** — `FastMCP("whoami", auth=GoogleProvider(client_id=..., client_secret=..., base_url="http://localhost:8000", required_scopes=["openid", "https://www.googleapis.com/auth/userinfo.email"]))`, one tool `whoami() -> str` returning `get_access_token().claims.get("email")`; `run(transport="http", port=8000)`.
+- [x] **Step 4: `whoami_agent.py`** — `MCPToolset("http://localhost:8000/mcp", auth="oauth")`, an `Agent("anthropic:claude-sonnet-5-5", toolsets=[toolset])`, `await agent.run("Call whoami and tell me my email.")`, print the output.
 - [ ] **Step 5 [Vincent]: Run it** — server in one terminal, agent in another. Expected: browser opens, Google sign-in, FastMCP consent page, then the agent prints your email. **Pass = the email printed comes from Google.**
 - [ ] **Step 6 [Vincent]: Token caching** — replace `auth="oauth"` with `auth=OAuth(mcp_url=URL, token_storage=FileTreeStore(data_directory=".tokens/agent-oauth"))` (`from fastmcp.client.auth import OAuth`). Run twice: the second run must not open the browser.
 - [ ] **Step 7: Decide and record** — if steps 5–6 pass: Task 3 is skipped. If OAuth fails after ~1h (try passing an `httpx2.AsyncClient(auth=OAuth(...))` as `http_client=` before giving up): record why and do Task 3 after the server plan.
 - [ ] **Step 8: Commit** — `git add spikes .gitignore pyproject.toml uv.lock && git commit -m "spike: PydanticAI agent signs in to FastMCP with Google OAuth"`
 
-Decision: _to fill in_
+Decision (2026-11-24, provisional until steps 5–6 pass with real Google credentials):
+- Checked offline, Google replaced by FastMCP's `InMemoryOAuthProvider`: a PydanticAI agent with `MCPToolset(url, auth="oauth")` completes the full MCP OAuth flow (dynamic client registration, PKCE, local callback, tool call as the signed-in client). With `auth=OAuth(..., token_storage=FileTreeStore(...))` a second run reuses the cached token and opens no browser.
+- `whoami_server.py` with dummy Google credentials: unauthenticated `/mcp` → 401, OAuth metadata served, client registration works, `/authorize` → FastMCP consent page (next hop would be Google).
+- `OAuth: works (offline)`, `Mechanism: auth=OAuth(...) with a FileTreeStore` → Task 3 likely skipped.
+- Gotchas for Task 2: `FileTreeStore` needs `FileTreeV1KeySanitizationStrategy` / `FileTreeV1CollectionSanitizationStrategy` (keys contain the server URL) and its folder must exist before the strategies are built; on Vincent's machine ports 8000 and 8001 are taken by another local app, so the port is configurable (`MCP_PORT`, `MCP_SERVER_URL`) and the Google redirect URI must use the same port.
 
 ---
 
