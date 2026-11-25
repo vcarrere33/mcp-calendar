@@ -64,11 +64,11 @@ Answers one question: can a PydanticAI agent complete the MCP OAuth flow against
 - [x] **Step 3: `whoami_server.py`** — `FastMCP("whoami", auth=GoogleProvider(client_id=..., client_secret=..., base_url="http://localhost:8000", required_scopes=["openid", "https://www.googleapis.com/auth/userinfo.email"]))`, one tool `whoami() -> str` returning `get_access_token().claims.get("email")`; `run(transport="http", port=8000)`.
 - [x] **Step 4: `whoami_agent.py`** — `MCPToolset("http://localhost:8000/mcp", auth="oauth")`, an `Agent("ollama:qwen2.5:7b", toolsets=[toolset])`, `await agent.run("Call whoami and tell me my email.")`, print the output.
 - [x] **Step 5 [Vincent]: Run it** — server in one terminal, agent in another. Expected: browser opens, Google sign-in, FastMCP consent page, then the agent prints your email. **Pass = the email printed comes from Google.**
-- [ ] **Step 6 [Vincent]: Token caching** — replace `auth="oauth"` with `auth=OAuth(mcp_url=URL, token_storage=FileTreeStore(data_directory=".tokens/agent-oauth"))` (`from fastmcp.client.auth import OAuth`). Run twice: the second run must not open the browser.
-- [ ] **Step 7: Decide and record** — if steps 5–6 pass: Task 3 is skipped. If OAuth fails after ~1h (try passing an `httpx2.AsyncClient(auth=OAuth(...))` as `http_client=` before giving up): record why and do Task 3 after the server plan.
-- [ ] **Step 8: Commit** — `git add spikes .gitignore pyproject.toml uv.lock && git commit -m "spike: PydanticAI agent signs in to FastMCP with Google OAuth"`
+- [x] **Step 6 [Vincent]: Token caching** — replace `auth="oauth"` with `auth=OAuth(mcp_url=URL, token_storage=FileTreeStore(data_directory=".tokens/agent-oauth"))` (`from fastmcp.client.auth import OAuth`). Run twice: the second run must not open the browser.
+- [x] **Step 7: Decide and record** — if steps 5–6 pass: Task 3 is skipped. If OAuth fails after ~1h (try passing an `httpx2.AsyncClient(auth=OAuth(...))` as `http_client=` before giving up): record why and do Task 3 after the server plan.
+- [x] **Step 8: Commit** — `git add spikes .gitignore pyproject.toml uv.lock && git commit -m "spike: PydanticAI agent signs in to FastMCP with Google OAuth"`
 
-Decision (2026-11-25): **agent-side OAuth works with real Google sign-in** (step 5 passed for Vincent, local model `qwen2.5:7b`). Task 3 is skipped unless step 6 fails.
+Decision (2026-11-25): **agent-side OAuth works with real Google sign-in** (step 5 passed for Vincent, local model `qwen2.5:7b`). Step 6 passed too (second `--cache` run, no browser). Task 3 is skipped.
 
 How we got there:
 - Checked offline, Google replaced by FastMCP's `InMemoryOAuthProvider`: a PydanticAI agent with `MCPToolset(url, auth="oauth")` completes the full MCP OAuth flow (dynamic client registration, PKCE, local callback, tool call as the signed-in client). With `auth=OAuth(..., token_storage=FileTreeStore(...))` a second run reuses the cached token and opens no browser.
