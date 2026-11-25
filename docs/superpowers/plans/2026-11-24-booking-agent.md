@@ -73,7 +73,7 @@ Decision (2026-11-24, provisional until steps 5–6 pass with real Google creden
 - `whoami_server.py` with dummy Google credentials: unauthenticated `/mcp` → 401, OAuth metadata served, client registration works, `/authorize` → FastMCP consent page (next hop would be Google).
 - 2026-11-25: same offline check with the real local model `ollama:qwen2.5:7b` instead of `TestModel`: it calls `whoami` after sign-in and answers correctly (~25 s).
 - `OAuth: works (offline)`, `Mechanism: auth=OAuth(...) with a FileTreeStore` → Task 3 likely skipped.
-- Gotchas for Task 2: `FileTreeStore` needs `FileTreeV1KeySanitizationStrategy` / `FileTreeV1CollectionSanitizationStrategy` (keys contain the server URL) and its folder must exist before the strategies are built; on Vincent's machine ports 8000 and 8001 are taken by another local app, so the port is configurable (`MCP_PORT`, `MCP_SERVER_URL`) and the Google redirect URI must use the same port.
+- Gotchas for Task 2: `MCPToolset` defaults to `init_timeout=5` s, and the browser sign-in happens inside that handshake, so a human never has time to sign in ("Failed to initialize server session"): pass `init_timeout=300` (FastMCP's callback timeout) and add a test `test_toolset_allows_time_to_sign_in` asserting it; `FileTreeStore` needs `FileTreeV1KeySanitizationStrategy` / `FileTreeV1CollectionSanitizationStrategy` (keys contain the server URL) and its folder must exist before the strategies are built; on Vincent's machine ports 8000 and 8001 are taken by another local app, so the port is configurable (`MCP_PORT`, `MCP_SERVER_URL`) and the Google redirect URI must use the same port.
 
 ---
 
