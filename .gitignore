@@ -1,0 +1,12 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Secrets and local data: never commit
+.env
+rooms.toml
+users.toml
+client_secret*.json
+.tokens/
