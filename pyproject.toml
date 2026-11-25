@@ -7,7 +7,7 @@ authors = [{ name = "Vincent Carrere" }]
 requires-python = ">=3.13"
 dependencies = [
     "fastmcp>=4.2.5",
-    "pydantic-ai-slim[anthropic,mcp]>=2.73.0",
+    "pydantic-ai-slim[mcp,openai]>=2.74.0",
     "python-dotenv>=1.2.4",
 ]
 

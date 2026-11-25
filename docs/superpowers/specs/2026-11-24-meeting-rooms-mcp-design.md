@@ -126,7 +126,10 @@ Errors are returned as clear tool errors the agent can explain (room taken, not 
 
 - A small PydanticAI command-line chat that connects to the server over streamable HTTP and performs
   the MCP OAuth flow (browser opens for Google sign-in, token cached locally).
-- Default model: Claude Sonnet 5.5 via an Anthropic API key (any PydanticAI model works; set in `.env`).
+- Default model: a local Ollama model, `qwen2.5:7b` (supports tool calling), through Ollama's
+  OpenAI-compatible API (`OLLAMA_BASE_URL`). No paid API key needed. Any PydanticAI model works; set
+  `AGENT_MODEL` in `.env`. Trade-off: a 7B local model is slower (~25 s a turn here) and less reliable
+  at tool use than a frontier model, which makes precise tool descriptions matter even more.
 - The server should also work from any MCP client supporting OAuth (e.g. Claude Code), which the README will show.
 
 ### Tests

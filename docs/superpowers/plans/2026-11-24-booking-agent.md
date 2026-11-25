@@ -8,7 +8,7 @@
 
 **Architecture:** The agent is a pure MCP client in its own package (`booking_agent`), which never imports `meeting_rooms`. It connects over streamable HTTP with `pydantic_ai.mcp.MCPToolset`, using FastMCP's `OAuth` helper with a file token store so the browser sign-in happens once. The first task is a time-boxed spike that decides whether agent-side OAuth works; if it does not, Task 3 adds a static access-key fallback resolved by the server's same thin layer.
 
-**Tech Stack:** Python 3.13, uv, pydantic-ai-slim 2.73 (`[mcp,anthropic]`), FastMCP 4.2 client auth (`fastmcp.client.auth.OAuth`), `key_value.aio.stores.filetree.FileTreeStore`.
+**Tech Stack:** Python 3.13, uv, pydantic-ai-slim 2.74 (`[mcp,openai]`, the `openai` extra is what pydantic-ai's Ollama model uses), local Ollama, FastMCP 4.2 client auth (`fastmcp.client.auth.OAuth`), `key_value.aio.stores.filetree.FileTreeStore`.
 
 **Spec:** `docs/superpowers/specs/2026-11-24-meeting-rooms-mcp-design.md`
 
@@ -17,7 +17,8 @@
 ## Global Constraints
 
 - Same repo and same `pyproject.toml` as the server; separate package `src/booking_agent/`, which must not import `meeting_rooms`.
-- Default model `anthropic:claude-sonnet-5-5`, overridable with `AGENT_MODEL` in `.env`; `ANTHROPIC_API_KEY` in `.env` (gitignored).
+- Default model `ollama:qwen2.5:7b` (local Ollama, tool calling), overridable with `AGENT_MODEL`; `OLLAMA_BASE_URL=http://localhost:11434/v1` in `.env`. No API key.
+- Expect ~25 s per agent turn with the local model; test timeouts and the manual demo must allow for it. Offline tests use `TestModel` / `FunctionModel`, never Ollama.
 - MCP server URL default `http://localhost:8000/mcp`, overridable with `MCP_SERVER_URL`.
 - OAuth tokens cached in `.tokens/agent-oauth/` (gitignored by the server plan's `.tokens/` rule).
 - Default timezone `Europe/Paris`; the agent must tell the model today's date and timezone, or "tomorrow at 2pm" cannot be resolved.
@@ -59,9 +60,9 @@ Answers one question: can a PydanticAI agent complete the MCP OAuth flow against
 - Produces: a decision, written as two lines at the bottom of this task: `OAuth: works | fails`, `Mechanism: auth=OAuth(...) | auth="oauth" | static key fallback`.
 
 - [ ] **Step 1 [Vincent]: Google Cloud console** — new project; OAuth consent screen "External", testing mode, scopes `openid` + `email`; add both Gmail accounts as test users; create an OAuth client of type **Web application** with redirect URI `http://localhost:8000/auth/callback`. Put its id/secret in `.env` as `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`.
-- [x] **Step 2: Dependencies** — `uv add fastmcp "pydantic-ai-slim[mcp,anthropic]"`.
+- [x] **Step 2: Dependencies** — `uv add fastmcp "pydantic-ai-slim[mcp,openai]" python-dotenv` (switched from `anthropic` to `openai` on 2026-11-25 for Ollama).
 - [x] **Step 3: `whoami_server.py`** — `FastMCP("whoami", auth=GoogleProvider(client_id=..., client_secret=..., base_url="http://localhost:8000", required_scopes=["openid", "https://www.googleapis.com/auth/userinfo.email"]))`, one tool `whoami() -> str` returning `get_access_token().claims.get("email")`; `run(transport="http", port=8000)`.
-- [x] **Step 4: `whoami_agent.py`** — `MCPToolset("http://localhost:8000/mcp", auth="oauth")`, an `Agent("anthropic:claude-sonnet-5-5", toolsets=[toolset])`, `await agent.run("Call whoami and tell me my email.")`, print the output.
+- [x] **Step 4: `whoami_agent.py`** — `MCPToolset("http://localhost:8000/mcp", auth="oauth")`, an `Agent("ollama:qwen2.5:7b", toolsets=[toolset])`, `await agent.run("Call whoami and tell me my email.")`, print the output.
 - [ ] **Step 5 [Vincent]: Run it** — server in one terminal, agent in another. Expected: browser opens, Google sign-in, FastMCP consent page, then the agent prints your email. **Pass = the email printed comes from Google.**
 - [ ] **Step 6 [Vincent]: Token caching** — replace `auth="oauth"` with `auth=OAuth(mcp_url=URL, token_storage=FileTreeStore(data_directory=".tokens/agent-oauth"))` (`from fastmcp.client.auth import OAuth`). Run twice: the second run must not open the browser.
 - [ ] **Step 7: Decide and record** — if steps 5–6 pass: Task 3 is skipped. If OAuth fails after ~1h (try passing an `httpx2.AsyncClient(auth=OAuth(...))` as `http_client=` before giving up): record why and do Task 3 after the server plan.
@@ -70,6 +71,7 @@ Answers one question: can a PydanticAI agent complete the MCP OAuth flow against
 Decision (2026-11-24, provisional until steps 5–6 pass with real Google credentials):
 - Checked offline, Google replaced by FastMCP's `InMemoryOAuthProvider`: a PydanticAI agent with `MCPToolset(url, auth="oauth")` completes the full MCP OAuth flow (dynamic client registration, PKCE, local callback, tool call as the signed-in client). With `auth=OAuth(..., token_storage=FileTreeStore(...))` a second run reuses the cached token and opens no browser.
 - `whoami_server.py` with dummy Google credentials: unauthenticated `/mcp` → 401, OAuth metadata served, client registration works, `/authorize` → FastMCP consent page (next hop would be Google).
+- 2026-11-25: same offline check with the real local model `ollama:qwen2.5:7b` instead of `TestModel`: it calls `whoami` after sign-in and answers correctly (~25 s).
 - `OAuth: works (offline)`, `Mechanism: auth=OAuth(...) with a FileTreeStore` → Task 3 likely skipped.
 - Gotchas for Task 2: `FileTreeStore` needs `FileTreeV1KeySanitizationStrategy` / `FileTreeV1CollectionSanitizationStrategy` (keys contain the server URL) and its folder must exist before the strategies are built; on Vincent's machine ports 8000 and 8001 are taken by another local app, so the port is configurable (`MCP_PORT`, `MCP_SERVER_URL`) and the Google redirect URI must use the same port.
 
@@ -85,7 +87,7 @@ Decision (2026-11-24, provisional until steps 5–6 pass with real Google creden
 **Interfaces:**
 - Consumes: the running server (server plan Task 9); the spike's auth mechanism (Task 1).
 - Produces:
-  - `class AgentSettings(BaseSettings)`: `mcp_server_url: str = "http://localhost:8000/mcp"`, `agent_model: str = "anthropic:claude-sonnet-5-5"`, `token_dir: Path = Path(".tokens/agent-oauth")`, `access_key: str | None = None` (used only by Task 3).
+  - `class AgentSettings(BaseSettings)`: `mcp_server_url: str = "http://localhost:8000/mcp"`, `agent_model: str = "ollama:qwen2.5:7b"`, `token_dir: Path = Path(".tokens/agent-oauth")`, `access_key: str | None = None` (used only by Task 3).
   - `instructions(today: date) -> str` — role ("you book meeting rooms for the signed-in user"), today's date with weekday, timezone `Europe/Paris`, "always pass ISO 8601 times", "confirm the room, time and title back to the user after booking", "ask before cancelling".
   - `build_toolset(settings: AgentSettings) -> MCPToolset` — the mechanism recorded in Task 1, with `tool_error_behavior="failed"` so refusals reach the model as text.
   - `build_agent(model: str | Model, toolsets: list) -> Agent` — instructions passed as a function so the date is computed per run.
@@ -147,6 +149,6 @@ async def test_repl_exits_on_eof_and_exit_word(): ...
 - Modify: `README.md`
 
 - [ ] **Step 1 [Vincent]: Full demo with both roles** — employee account (second Gmail) books Atlas; admin account (Vincent) lists everyone's bookings and cancels it; employee tries to cancel an admin booking and is refused. Note any tool description that confused the model and tighten its docstring in `tools.py` (commit separately: `fix: clearer tool descriptions`).
-- [ ] **Step 2: README "Agent demo" section** — how to set `ANTHROPIC_API_KEY`, run server + agent, a short transcript of the refusal case (that transcript is the portfolio's point), and, if Task 3 ran, an honest "Known limitation: the agent uses a static access key; OAuth for the agent is the next step."
+- [ ] **Step 2: README "Agent demo" section** — how to set up Ollama (`ollama pull qwen2.5:7b`, `OLLAMA_BASE_URL`) and how to switch `AGENT_MODEL` to a hosted model, run server + agent, a short transcript of the refusal case (that transcript is the portfolio's point), and, if Task 3 ran, an honest "Known limitation: the agent uses a static access key; OAuth for the agent is the next step."
 - [ ] **Step 3: Final check** — `uv run pytest -v` green; `git status` clean; `git grep` shows no real email, key or secret.
 - [ ] **Step 4: Commit** — `docs: agent demo`; then **[Vincent]** switches `gh` to `vcarrere33`, creates the public repo and pushes.

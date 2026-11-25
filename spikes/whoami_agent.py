@@ -53,8 +53,6 @@ if __name__ == "__main__":
     parser.add_argument(
         "--cache", action="store_true", help="cache OAuth tokens in .tokens/agent-oauth"
     )
-    parser.add_argument(
-        "--model", default=os.environ.get("AGENT_MODEL", "anthropic:claude-sonnet-5-5")
-    )
+    parser.add_argument("--model", default=os.environ.get("AGENT_MODEL", "ollama:qwen2.5:7b"))
     args = parser.parse_args()
     asyncio.run(main(args.cache, args.model))
